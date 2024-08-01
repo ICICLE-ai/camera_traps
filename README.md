@@ -1,5 +1,5 @@
 
-# MegaDetector v5a and v5b
+# Models
 
 ## Overview
 MegaDetector is an AI-powered computer vision model built using YoloV5 architecture, designed to detect animals, humans, vehicles, and false triggers in camera trap images. MegaDetector assists in automating the analysis of vast amounts of imagery collected from camera traps, aiding in wildlife research and conservation efforts. 
@@ -30,4 +30,14 @@ MegaDetector is an AI-powered computer vision model built using YoloV5 architect
 
 ### [MegaDetector v5a fine-tuned model](https://github.com/ICICLE-ai/camera_traps/blob/main/models/md_v5a.0.0_ena.pt)
 The original MegaDetector model is finetuned based on [Eastern North America](https://lila.science/datasets/ena24) to detect input images at species level. The ENA24 dataset comprises approximately 8,000 images, primarily captured in Eastern North America. The labeled dataset has 23 classes and the most commonly found species are American cow, American black bear, and Dog.
-This model was trained by Sikan Li and added few [notes](https://docs.google.com/document/d/1j5deOeSZy3slXwkTYVAF1Q6BfSBSXH-RfN-CFn3amNM/edit) here.
+This model was trained by Sikan Li and added a few [notes](https://docs.google.com/document/d/1j5deOeSZy3slXwkTYVAF1Q6BfSBSXH-RfN-CFn3amNM/edit) here.
+
+### [MegaDetector v5a optimized model](https://github.com/ICICLE-ai/camera_traps/blob/main/models/mdv5_optimized.pt)
+[Dan Morris](agentmorris@gmail.com) developed the model for ConservationXLabs to use in their Sentinel device.
+
+### [MegaDetector v6](https://github.com/ICICLE-ai/camera_traps/blob/main/models/MDV6b-yolov9c.pt)
+The model is developed using Yolov9 architecture and is currently under beta testing for the public.
+
+# [Ground Truth](https://github.com/ICICLE-ai/camera_traps/tree/main/ground_truth)
+The repo has 3 files with ground truth information. The [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_ena.csv) includes ground truth information for the ENA dataset at species level retrieved from the [metadata](https://storage.googleapis.com/public-datasets-lila/ena24/ena24.json) available in lila.science. Based on the metadata, the following file is created for object detection [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_ena_megadetector.csv). The [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_15_images.csv) contain ground truth for 15 images that were downloaded from the google and the file was created manually by Sowbaranika.
+
