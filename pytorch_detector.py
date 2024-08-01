@@ -35,7 +35,7 @@ class PTDetector:
     IMAGE_SIZE = 1280  
     STRIDE = 64
 
-    def __init__(self, model_path: str, force_cpu: bool = False):
+    def __init__(self, model_path: str, force_cpu: bool = False, use_model_native_classes= False):
         self.device = 'cpu'
         if not force_cpu:
             if torch.cuda.is_available():
@@ -45,12 +45,27 @@ class PTDetector:
                     self.device = 'mps'
             except AttributeError:
                 pass
-        self.model = PTDetector._load_model(model_path, self.device)
+        try:
+            self.model = PTDetector._load_model(model_path, self.device)
+        except Exception as e:
+            # In a very esoteric scenario where an old version of YOLOv5 is used to run
+            # newer models, we run into an issue because the "Model" class became
+            # "DetectionModel".  New YOLOv5 code handles this case by just setting them
+            # to be the same, so doing that via monkey-patch doesn't seem *that* rude.
+            if "Can't get attribute 'DetectionModel'" in str(e):
+                print('Forward-compatibility issue detected, patching')
+                from models import yolo
+                yolo.DetectionModel = yolo.Model                
+                self.model = PTDetector._load_model(model_path, self.device)                
+            else:
+                raise
         if (self.device != 'cpu'):
             print('Sending model to GPU')
             self.model.to(self.device)
             
-        self.printed_image_size_warning = False
+        self.printed_image_size_warning = False        
+        self.use_model_native_classes = use_model_native_classes
+        
 
     @staticmethod
     def _load_model(model_pt_path, device):
