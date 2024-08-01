@@ -33,11 +33,11 @@ The original MegaDetector model is finetuned based on [Eastern North America](ht
 This model was trained by Sikan Li and added a few [notes](https://docs.google.com/document/d/1j5deOeSZy3slXwkTYVAF1Q6BfSBSXH-RfN-CFn3amNM/edit) here.
 
 ### [MegaDetector v5a optimized model](https://github.com/ICICLE-ai/camera_traps/blob/main/models/mdv5_optimized.pt)
-[Dan Morris](agentmorris@gmail.com) developed the model for ConservationXLabs to use in their Sentinel device.
+[Dan Morris](emailto:agentmorris@gmail.com) developed the model for ConservationXLabs to use in their Sentinel device.
 
 ### [MegaDetector v6](https://github.com/ICICLE-ai/camera_traps/blob/main/models/MDV6b-yolov9c.pt)
 The model is developed using Yolov9 architecture and is currently under beta testing for the public.
 
 # [Ground Truth](https://github.com/ICICLE-ai/camera_traps/tree/main/ground_truth)
-The repo has 3 files with ground truth information. The [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_ena.csv) includes ground truth information for the ENA dataset at species level retrieved from the [metadata](https://storage.googleapis.com/public-datasets-lila/ena24/ena24.json) available in lila.science. Based on the metadata, the following file is created for object detection [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_ena_megadetector.csv). The [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_15_images.csv) contain ground truth for 15 images that were downloaded from the google and the file was created manually by Sowbaranika.
+This repository contains three files with ground truth data. The [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_ena.csv) species-level ground truth information for the ENA dataset, derived from [metadata](https://storage.googleapis.com/public-datasets-lila/ena24/ena24.json) available on lila.science. Using this metadata, the following file was created for object detection [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_ena_megadetector.csv). The [file](https://github.com/ICICLE-ai/camera_traps/blob/main/ground_truth/ground_truth_15_images.csv) contain ground truth for 15 images that were downloaded from the google and the file was created manually by Sowbaranika.
 
