@@ -12,18 +12,11 @@ import traceback
 from run_detector import CONF_DIGITS, COORD_DIGITS, FAILURE_INFER
 import ct_utils
 
-try:
-    # import pre- and post-processing functions from the YOLOv5 repo https://github.com/ultralytics/yolov5
-    from utils.general import non_max_suppression, xyxy2xywh
-    from utils.augmentations import letterbox
-    
-    # scale_coords() became scale_boxes() in later YOLOv5 versions
-    try:
-        from utils.general import scale_coords
-    except ImportError:        
-        from utils.general import scale_boxes as scale_coords
-except ModuleNotFoundError:
-    raise ModuleNotFoundError('Could not import YOLOv5 functions.')
+from ultralytics.data.augment import LetterBox, ToTensor
+from ultralytics.models import YOLO
+from ultralytics.utils.ops import scale_coords
+from ultralytics.utils.plotting import Annotator
+from ultralytics.engine.results import Results, Boxes, Probs
 
 print(f'Using PyTorch version {torch.__version__}')
 
@@ -65,17 +58,59 @@ class PTDetector:
             
         self.printed_image_size_warning = False        
         self.use_model_native_classes = use_model_native_classes
+        self.draw_boxes = True
+        self.letterbox = LetterBox(new_shape=(PTDetector.IMAGE_SIZE, PTDetector.IMAGE_SIZE), stride=PTDetector.STRIDE, auto=True)
+        self.to_tensor = ToTensor()
         
 
     @staticmethod
     def _load_model(model_pt_path, device):
-        checkpoint = torch.load(model_pt_path, map_location=device)
-        for m in checkpoint['model'].modules():
-            if type(m) is torch.nn.Upsample:
-                m.recompute_scale_factor = None
-        torch.save(checkpoint, model_pt_path)
-        model = checkpoint['model'].float().fuse().eval()  # FP32 model
-        return model
+        return YOLO(model_pt_path, verbose=True).to(device)
+
+    def _preprocess(self, image):
+        aug_image = self.letterbox(image=image)
+        aug_image = self.to_tensor(aug_image)
+        return aug_image.unsqueeze(dim=0).contiguous().to(device=self.device)
+
+    def _draw_bounding_box(self, results, image, detection_threshold):#, class_names):
+        annotator = Annotator(image)
+        for det in results["detections"]:
+            if det['conf'] > detection_threshold:
+                annotator.box_label(det['bbox'], f"{det['category']} {det['conf']*100.0:.2f}%")
+        results["annotated_image"] = annotator.result()
+        return results
+
+    def _postprocess(self, detections: Results, image, aug_img_shape, detection_threshold, **kwargs):
+        boxes: Boxes | None = detections.boxes
+        class_names = detections.names
+        results = None
+        if boxes:
+            scaled_boxes = scale_coords(
+                aug_img_shape, boxes.xyxy.clone(), image.shape[:2]
+            ).round()
+            labels = boxes.cls
+            confidences = boxes.conf
+
+            dets = []
+            for box, label, confidence in zip(scaled_boxes, labels, confidences):
+                dets.append({'category': class_names[int(label)], 'conf': round(confidence.item(), 2), 'bbox': box.tolist()})
+            results = {
+                "number of detections": len(dets),
+                #"boxes": scaled_boxes,
+                #"labels": labels,
+                #"confidences": confidences * 100.00,
+                "detections": dets,
+                "annotated_image": None,
+            }
+
+            if self.draw_boxes:
+                results = self._draw_bounding_box(
+                    results=results,
+                    image=image,
+                    detection_threshold=detection_threshold
+                    #class_names=class_names
+                )
+        return results
 
     def generate_detections_one_image(self, img_original, image_id, detection_threshold, image_size=None):
         """Apply the detector to an image.
@@ -98,106 +133,11 @@ class PTDetector:
         }
         detections = []
         max_conf = 0.0
-
-        try:
-            
-            img_original = np.asarray(img_original)
-
-            # padded resize
-            target_size = PTDetector.IMAGE_SIZE
-            
-            # Image size can be an int (which translates to a square target size) or (h,w)
-            if image_size is not None:
-                
-                assert isinstance(image_size,int) or (len(image_size)==2)
-                
-                if not self.printed_image_size_warning:
-                    print('Warning: using user-supplied image size {}'.format(image_size))
-                    self.printed_image_size_warning = True
-            
-                target_size = image_size
-            
-            else:
-                
-                self.printed_image_size_warning = False
-                
-            # ...if the caller has specified an image size
-            
-            img = letterbox(img_original, new_shape=target_size,
-                                 stride=PTDetector.STRIDE, auto=True)[0]  # JIT requires auto=False
-            
-            img = img.transpose((2, 0, 1))  # HWC to CHW; PIL Image is RGB already
-            img = np.ascontiguousarray(img)
-            img = torch.from_numpy(img)
-            img = img.to(self.device)
-            img = img.float()
-            img /= 255
-
-            if len(img.shape) == 3:  # always true for now, TODO add inference using larger batch size
-                img = torch.unsqueeze(img, 0)
-
-            pred: list = self.model(img)[0]
-
-            # NMS
-            if self.device == 'mps':
-                # Current v1.13.0.dev20220824 torchvision::nms is not current implemented for the MPS device
-                # Send pred back to cpu to fix
-                pred = non_max_suppression(prediction=pred.cpu(), conf_thres=detection_threshold)
-            else: 
-                pred = non_max_suppression(prediction=pred, conf_thres=detection_threshold)
-
-            # format detections/bounding boxes
-            gn = torch.tensor(img_original.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-
-            # This is a loop over detection batches, which will always be length 1 in our case,
-            # since we're not doing batch inference.
-            for det in pred:
-                
-                if len(det):
-                    
-                    # Rescale boxes from img_size to im0 size
-                    det[:, :4] = scale_coords(img.shape[2:], det[:, :4], img_original.shape).round()
-
-                    for *xyxy, conf, cls in reversed(det):
-                        
-                        # normalized center-x, center-y, width and height
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()
-
-                        api_box = ct_utils.convert_yolo_to_xywh(xywh)
-
-                        conf = ct_utils.truncate_float(conf.tolist(), precision=CONF_DIGITS)
-
-                        # MegaDetector output format's categories start at 1, but this model's start at 0
-                        cls = int(cls.tolist()) + 1
-                        if cls not in range(1, 24):
-                            raise KeyError(f'{cls} is not a valid class.')
-
-                        detections.append({
-                            'category': str(cls),
-                            'conf': conf,
-                            'bbox': ct_utils.truncate_float_array(api_box, precision=COORD_DIGITS)
-                        })
-                        max_conf = max(max_conf, conf)
-                        
-                    # ...for each detection in this batch
-                        
-                # ...if this is a non-empty batch
-                
-            # ...for each detection batch
-
-        # ...try
-        
-        except Exception as e:
-            
-            result['failure'] = FAILURE_INFER
-            print('PTDetector: image {} failed during inference: {}\n'.format(image_id, str(e)))
-            traceback.print_exc(e)
-
-        result['max_detection_conf'] = max_conf
-        result['detections'] = detections
-
-        return result
-
+        img_original = np.asarray(img_original)
+        aug_image = self._preprocess(image=img_original)
+        with torch.no_grad():
+            detections = self.model(aug_image, conf=detection_threshold)[0]
+        return self._postprocess(detections=detections, image=img_original, detection_threshold=detection_threshold, aug_img_shape=aug_image.shape[2:])
 
 if __name__ == '__main__':
     # for testing
