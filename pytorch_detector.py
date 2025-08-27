@@ -80,6 +80,18 @@ class PTDetector:
         results["annotated_image"] = annotator.result()
         return results
 
+    def _convert_xyxy_to_xywh(self, xyxy: list):
+        x1 = xyxy[0]
+        y1 = xyxy[1]
+        x2 = xyxy[2]
+        y2 = xyxy[3]
+
+        w = x2 - x1
+        h = y2 - y1
+        xc = x1 + w / 2
+        yc = y1 + h / 2
+        return [xc, yc, w, h]
+
     def _postprocess(self, detections: Results, image, aug_img_shape, detection_threshold, **kwargs):
         boxes: Boxes | None = detections.boxes
         class_names = detections.names
@@ -93,7 +105,7 @@ class PTDetector:
 
             dets = []
             for box, label, confidence in zip(scaled_boxes, labels, confidences):
-                dets.append({'category': class_names[int(label)], 'conf': round(confidence.item(), 2), 'bbox': box.tolist()})
+                dets.append({'category': class_names[int(label)], 'conf': round(confidence.item(), 2), 'bbox': self._convert_xyxy_to_xywh(box.tolist())})
             results = {
                 "number of detections": len(dets),
                 #"boxes": scaled_boxes,
