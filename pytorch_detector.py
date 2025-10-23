@@ -76,9 +76,21 @@ class PTDetector:
         annotator = Annotator(image)
         for det in results["detections"]:
             if det['conf'] > detection_threshold:
-                annotator.box_label(det['bbox'], f"{det['category']} {det['conf']*100.0:.2f}%")
+                annotator.box_label(self._convert_xywh_to_xyxy(det['bbox']), f"{det['category']} {det['conf']*100.0:.2f}%")
         results["annotated_image"] = annotator.result()
         return results
+
+    def _convert_xywh_to_xyxy(self, xywh: list):
+        xc = xywh[0]
+        yc = xywh[1]
+        w  = xywh[2]
+        h  = xywh[3]
+
+        x1 = xc - w / 2
+        x2 = xc + w / 2
+        y1 = yc - h / 2
+        y2 = yc + h / 2
+        return [x1, y1, x2, y2]
 
     def _convert_xyxy_to_xywh(self, xyxy: list):
         x1 = xyxy[0]
@@ -98,8 +110,8 @@ class PTDetector:
         results = None
         if boxes:
             scaled_boxes = scale_coords(
-                aug_img_shape, boxes.xyxy.clone(), image.shape[:2]
-            ).round()
+                aug_img_shape, boxes.xyxy.clone().reshape([-1,2,2]), image.shape[:2]
+            ).round().reshape([-1,4])
             labels = boxes.cls
             confidences = boxes.conf
 
